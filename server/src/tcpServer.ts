@@ -1,6 +1,7 @@
 //manages the client to server tunnels
 import { randomBytes } from "crypto";
 import net from "net"
+import { connectionMap } from ".";
 
 export interface ClientConnection {
   id: string;
@@ -31,7 +32,7 @@ export class TCPServer {
   
   //create tcp server and start listening 
   createServer() {
-    const server = net.createServer( (socket) => {
+    const server = net.createServer((socket) => {
     console.log("Client connected");
 
     let clientConnection: ClientConnection | null = null;
@@ -63,7 +64,7 @@ export class TCPServer {
               status: 'success'
             };
 
-            socket.write(JSON.stringify(response));
+            socket.write(JSON.stringify(response) + '\n');
             console.log(`Client connected :- ${clientId} -> ${publicUrl}`);
 
           } 
@@ -98,7 +99,7 @@ export class TCPServer {
 		 
 		});
 		
-		server.listen(() => {
+		server.listen(this.port,() => {
 		  console.log(`Server is listening on port ${this.port}`);
 		});
   }

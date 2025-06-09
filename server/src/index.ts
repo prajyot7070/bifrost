@@ -7,11 +7,13 @@ import { HTTPServer } from './httpServer';
 const TCP_PORT = 8080
 const HTTP_PORT = 7070
 
-let connectionMap: Map<string, ClientConnection>;
+export const connectionMap = new  Map<string, any>();
 
 const tcp = new TCPServer(TCP_PORT);
 const http_proxy = new HTTPServer(HTTP_PORT);
 
 tcp.createServer();
 http_proxy.createServer();
+
+
 
