@@ -2,6 +2,7 @@
 import { randomBytes } from "crypto";
 import net from "net"
 import { connectionMap } from ".";
+import { HTTPServer } from "./httpServer";
 
 export interface ClientConnection {
   id: string;
@@ -15,10 +16,15 @@ export interface ClientConnection {
 export class TCPServer {
   port: number;
   server: net.Server | null = null;
+  httpServer: HTTPServer | null = null;
 
   //constructor
   constructor(port: number) {
     this.port = port;
+  }
+
+  setHTTPServer(httpServer: HTTPServer) {
+    this.httpServer = httpServer;
   }
 
   generateUniqueId(): string {
@@ -107,5 +113,8 @@ export class TCPServer {
   private handleHTTPResponse(message: any, clientConnection: ClientConnection) {
     //http server will send back this as response to the recieved request
     console.log(`Received HTTP response from client ${clientConnection.id}`);
+    if (this.httpServer) {
+      this.httpServer.handleClientResponse(message);
+    }
   }
 }

@@ -28,6 +28,7 @@ export class HTTPServer {
         return;
       }
 
+      console.log(`subdomain :- ${subdomain}`);
       const clientConnectioon = connectionMap.get(subdomain);
       if (!clientConnectioon || !clientConnectioon.isActive) {
         res.writeHead(404, {'Content-Type': 'text/plain'});
@@ -48,7 +49,7 @@ export class HTTPServer {
     }
     return null;
   }
-  
+
   private async forwardToClient(
     req: http.IncomingMessage, 
     res: http.ServerResponse, 
@@ -69,8 +70,8 @@ export class HTTPServer {
       const requestId = requestData.requestId;
       this.pendingRequests.set(requestId, res);
 
-      // Send request to client via TCP connection
-      clientConnection.socket.write(JSON.stringify(requestData));
+      // Send request to client via TCP connection FIX: added \n
+      clientConnection.socket.write(JSON.stringify(requestData) + '\n');
 
       // Set timeout for the request
       setTimeout(() => {
@@ -118,4 +119,5 @@ export class HTTPServer {
       this.pendingRequests.delete(requestId);
     }
   }
+
 }

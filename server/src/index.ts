@@ -12,8 +12,9 @@ export const connectionMap = new  Map<string, any>();
 const tcp = new TCPServer(TCP_PORT);
 const http_proxy = new HTTPServer(HTTP_PORT);
 
-tcp.createServer();
 http_proxy.createServer();
 
+tcp.setHTTPServer(http_proxy);
+tcp.createServer();
 
 
