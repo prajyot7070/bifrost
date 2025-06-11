@@ -258,7 +258,7 @@ func main() {
 	fmt.Println("🚀 Starting Bifrost Tunnel Client...")
 
 	// Configuration
-	serverHost := "localhost" // Change this to your EC2 IP when deployed
+	serverHost := "54.144.127.2" // Change this to your EC2 IP when deployed
 	serverPort := 8080
 	localPort := 3000
 

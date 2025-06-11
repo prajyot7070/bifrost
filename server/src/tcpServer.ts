@@ -32,7 +32,7 @@ export class TCPServer {
   }
   
   createPublicURL(subdomain: string): string {
-    const domain = "www.prajyot.dev";
+    const domain = "bifrost.prajyot.dev";
     return `https://${subdomain}.${domain}`
   }
   
