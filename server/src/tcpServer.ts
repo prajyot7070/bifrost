@@ -46,6 +46,7 @@ export class TCPServer {
 		socket.on('data', (data) => {
         try {
           const message = JSON.parse(data.toString());
+          console.log("message :-", message);
           
           if(message.type === 'CONNECT') {
             const clientId = this.generateUniqueId();

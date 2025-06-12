@@ -56,6 +56,7 @@ func NewTunnelClient(localPort int) *TunnelClient {
 }
 
 func (tc *TunnelClient) Connect(serverHost string, serverPort int) error {
+  fmt.Printf("Connecting to %s : %d \n",serverHost, serverPort)
 	// Connect to TCP server
 	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", serverHost, serverPort))
 	if err != nil {
@@ -258,7 +259,7 @@ func main() {
 	fmt.Println("🚀 Starting Bifrost Tunnel Client...")
 
 	// Configuration
-	serverHost := "54.144.127.2" // Change this to your EC2 IP when deployed
+	serverHost := "bifrost.prajyot.dev" //"13.217.71.218" // Change this to your EC2 IP when deployed
 	serverPort := 8080
 	localPort := 3000
 
