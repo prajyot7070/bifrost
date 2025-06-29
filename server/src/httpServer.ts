@@ -6,7 +6,10 @@ import { ClientConnection } from './tcpServer';
 export class HTTPServer {
   port: number;
   server: http.Server | null = null;
-  private pendingRequests = new Map<string, http.ServerResponse>();
+  private pendingRequests = new Map<string, http.ServerResponse>(); //<requestId, response handler>
+  private userRequestTimestamp = new Map<string, number>(); //<subdomain, time in sec>
+  private clientRequests = new Map<string, Set<string>>(); //<clientConnection.id , Set<requestId's, . . .>>
+  private readonly RATE_LIMIT_WINDOW = 1000; // 1 sec
 
   constructor(port: number) {
     this.port = port;
@@ -56,6 +59,18 @@ export class HTTPServer {
     clientConnection: ClientConnection
   ) {
     try {
+      //check for rate limit
+      const now = Date.now();
+      const userIp = req.socket.remoteAddress ?? 'unknown';
+      const userRequestTime = this.userRequestTimestamp.get(userIp) || 0;
+      if (now - userRequestTime < this.RATE_LIMIT_WINDOW) {
+        console.warn(`Rate limit exceeded for ${clientConnection.subdomain}`);
+        res.writeHead(429,{'content-type':'text/plain'});
+        res.end('Too many requests');
+      }
+      //update the userRequestTime 
+      this.userRequestTimestamp.set(userIp, now);
+
       // Prepare HTTP request data to send to client
       const requestData = {
         type: 'HTTP_REQUEST',
@@ -69,6 +84,11 @@ export class HTTPServer {
       // Store response handler for this request
       const requestId = requestData.requestId;
       this.pendingRequests.set(requestId, res);
+      //store the clientId and requests
+      if (!this.clientRequests.has(clientConnection.id)) {
+        this.clientRequests.set(clientConnection.id, new Set());
+      }
+      this.clientRequests.get(clientConnection.id)!.add(requestId);
 
       // Send request to client via TCP connection FIX: added \n
       clientConnection.socket.write(JSON.stringify(requestData) + '\n');
@@ -77,6 +97,7 @@ export class HTTPServer {
       setTimeout(() => {
         if (this.pendingRequests.has(requestId)) {
           this.pendingRequests.delete(requestId);
+          this.clientRequests.get(clientConnection.id)?.delete(requestId);
           if (!res.headersSent) {
             res.writeHead(504, { 'Content-Type': 'text/plain' });
             res.end('Gateway Timeout');
@@ -117,6 +138,24 @@ export class HTTPServer {
       res.writeHead(statusCode || 200, headers || {});
       res.end(body || '');
       this.pendingRequests.delete(requestId);
+    }
+  }
+
+  cleanupClientRequests(clientId: string) {
+    if (this.clientRequests.has(clientId)) {
+      const requestIds = this.clientRequests.get(clientId);
+      if (requestIds) {
+        for (const requestId of requestIds) {
+          const res = this.pendingRequests.get(requestId);
+          if (res && !res.headersSent) {
+            res.writeHead(502, { 'Content-Type': 'text/plain' });
+            res.end('Bad Gateway: The tunnel connection was closed.');
+          }
+          this.pendingRequests.delete(requestId);
+        }
+        this.clientRequests.delete(clientId);
+      }
+      
     }
   }
 
