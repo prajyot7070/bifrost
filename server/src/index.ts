@@ -1,7 +1,7 @@
 import net from 'net'
 import { nextTick } from 'process'
 import { BufferSource } from 'stream/web';
-import { ClientConnection, TCPServer } from './tcpServer';
+import { TCPServer } from './tcpServer';
 import { HTTPServer } from './httpServer';
 
 const TCP_PORT = 8080

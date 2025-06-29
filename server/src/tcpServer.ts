@@ -1,4 +1,3 @@
-//manages the client to server tunnels
 import { randomBytes } from "crypto";
 import net from "net"
 import { connectionMap } from ".";
