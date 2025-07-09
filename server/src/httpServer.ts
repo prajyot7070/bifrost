@@ -10,7 +10,7 @@ export class HTTPServer {
   private pendingRequests = new Map<string, http.ServerResponse>(); //<requestId, response handler>
   private userRequestTimestamp = new Map<string, number>(); //<subdomain, time in sec>
   private clientRequests = new Map<string, Set<string>>(); //<clientConnection.id , Set<requestId's, . . .>>
-  private readonly RATE_LIMIT_WINDOW = 1000; // 1 sec
+  private readonly RATE_LIMIT_WINDOW = 10000; // 1 sec
 
   constructor(port: number) {
     this.port = port;
@@ -61,16 +61,16 @@ export class HTTPServer {
   ) {
     try {
       //check for rate limit
-      const now = Date.now();
-      const userIp = req.socket.remoteAddress ?? 'unknown';
-      const userRequestTime = this.userRequestTimestamp.get(userIp) || 0;
-      if (now - userRequestTime < this.RATE_LIMIT_WINDOW) {
-        console.warn(`Rate limit exceeded for ${clientConnection.subdomain}`);
-        res.writeHead(429,{'content-type':'text/plain'});
-        res.end('Too many requests');
-      }
-      //update the userRequestTime 
-      this.userRequestTimestamp.set(userIp, now);
+//      const now = Date.now();
+//      const userIp = req.socket.remoteAddress ?? 'unknown';
+//      const userRequestTime = this.userRequestTimestamp.get(userIp) || 0;
+//      if (now - userRequestTime < this.RATE_LIMIT_WINDOW) {
+//        console.warn(`Rate limit exceeded for ${clientConnection.subdomain}`);
+//        res.writeHead(429,{'content-type':'text/plain'});
+//        res.end('Too many requests');
+//      }
+//      //update the userRequestTime 
+//      this.userRequestTimestamp.set(userIp, now);
 
       const headers = this.normalizeHTTPHeaders(req.headers as {[key: string] : string | string[]});
 
