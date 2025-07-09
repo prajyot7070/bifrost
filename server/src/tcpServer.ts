@@ -46,22 +46,19 @@ export class TCPServer {
   createServer() {
     this.server = net.createServer((socket) => {
       // Auth / Verification using API key 
-
-	    console.log("Client connected");
+      // Client should send token with 'CONNECT' msg
+	    console.log(`Client connected from ${socket.remoteAddress}:${socket.remotePort}`);
 	    socket.setTimeout(this.CONNECTION_TIMEOUT);
-	
 	    //check connection limit
 	    if (this.connections.size >= this.MAX_CONNECTIONS) {
 	        console.warn('Connection limit reached, rejecting new connection');
-	        socket.end();
+	        socket.end('{"type":"ERROR", "message":"Connection limit reached"}');
 	        return;
 	      }
-	
 	    this.connections.add(socket);
-	
 	    let clientConnection: ClientConnection | null = null;
 	    let heartbeatInterval: NodeJS.Timeout | null = null;
-
+      let messageBuff = '';
       //heartbeat 
       const startHeartbeat = () => {
         heartbeatInterval = setInterval(() => {
@@ -82,36 +79,50 @@ export class TCPServer {
           clearInterval(heartbeatInterval);
         }
       }
-	
+
 			socket.on('data', (data) => {
-	        try {
-	          const message = JSON.parse(data.toString());
-	          console.log("message :-", message);
-	          
-	          if(message.type === 'CONNECT') {
-	            clientConnection = this.handleConnect(message, socket);
-	            if (clientConnection) {
-	              heartbeatInterval = setTimeout(() => {
-	                this.sendHeartBeat(socket);
-	              }, 30000);
-	            }
-	          } 
-	          else if (message.type === 'HTTP_RESPONSE' && clientConnection){
-	            this.handleHTTPResponse(message, clientConnection);
-	          } else if (message.type === 'HEARTBEAT_RESPONSE' && clientConnection) {
-	              clientConnection.lastActivity = new Date();
-	          } else {
-            console.warn("Received unknown message type");
+        messageBuff += data.toString();
+        let boundary = messageBuff.indexOf('\n');
+        while (boundary !== -1) {
+          const messageString = messageBuff.substring(0, boundary);
+          messageBuff = messageBuff.substring(boundary+1);
+          if (messageString) {
+            try {
+		          const message = JSON.parse(messageString);
+		          console.log("message :-", message);
+		          if(message.type === 'CONNECT') {
+		            clientConnection = this.handleConnect(message, socket);
+		            if (clientConnection) {
+		              startHeartbeat();
+		            }
+		          } else if (clientConnection) {
+                switch (message.type) {
+                  case 'HTTP_RESPONSE':
+                    this.handleHTTPResponse(message, clientConnection);
+                    break;
+                  case 'HEARTBEAT_RESPONSE':
+                    clientConnection.lastActivity = new Date();
+                    console.log(`Heartbeat response from ${clientConnection.id}`);
+                  default:
+                    console.log(`Received message of unknown type: ${message.type}`);
+                    break;
+                }
+		          } else {
+                console.warn("Received message before connection was established");
+              }
+	          } catch (error) {
+			          console.error(`Error parsing client message: ${error}`);
+			          socket.write(JSON.stringify({
+			            type: 'ERROR',
+			            message: 'Invalid message format'
+			          }) + '\n');
+	          }   
           }
-	        } catch (error) {
-	          console.error(`Error parsing client message: ${error}`);
-	          socket.write(JSON.stringify({
-	            type: 'ERROR',
-	            message: 'Invalid message format'
-	          }) + '\n');
-	        }
-			  });
-		  
+          boundary = messageBuff.indexOf('\n');
+        }
+	        
+			});
+
 			socket.on('close', (hadError) => {
         stopHeartBeat();
 	      this.connections.delete(socket);
@@ -190,6 +201,7 @@ export class TCPServer {
         timestamp: Date.now()
       };
       socket.write(JSON.stringify(heartbeat) + '\n');
+      console.log("Sent heartbeat");
     } catch (error) {
       console.error(`Error sending heartbeat: ${error}`);
     }
