@@ -2,355 +2,296 @@ package main
 
 import (
 	"bufio"
-//	"bytes"
+	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
-//	"os"
-	"strings"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 )
 
+// --- Message Structs for Server Communication ---
+
+// BaseMessage is used to determine the type of an incoming message.
+type BaseMessage struct {
+	Type string `json:"type"`
+}
+
+// ConnectMessage is sent by the client to initiate a tunnel.
 type ConnectMessage struct {
 	Type      string `json:"type"`
 	LocalPort int    `json:"localPort"`
+	// TODO: Add an AuthToken for security
+	// AuthToken string `json:"authToken"`
 }
 
+// ConnectionResponse is received from the server after a successful connection.
 type ConnectionResponse struct {
 	Type      string `json:"type"`
-	ClientID  string `json:"clientId"`  // Fixed: match server's camelCase
-	PublicURL string `json:"publicUrl"` // Fixed: match server's camelCase
+	ClientID  string `json:"clientId"`
+	PublicURL string `json:"publicUrl"`
 	Status    string `json:"status"`
+	Message   string `json:"message"` // For errors
 }
 
-type HTTPRequest struct {
-	Type      string                 `json:"type"`
-	RequestID string                 `json:"requestId"`
-	Method    string                 `json:"method"`
-	URL       string                 `json:"url"`
-	Headers   map[string]interface{} `json:"headers"`
-	Body      string                 `json:"body"`
+// ServerHTTPRequest is the format of an HTTP request forwarded by the server.
+type ServerHTTPRequest struct {
+	Type      string      `json:"type"`
+	RequestID string      `json:"requestId"`
+	Method    string      `json:"method"`
+	URL       string      `json:"url"`
+	Headers   http.Header `json:"headers"`
+	Body      string      `json:"body"`
 }
 
-type HTTPResponse struct {
-	Type       string                 `json:"type"`
-	RequestID  string                 `json:"requestId"`
-	StatusCode int                    `json:"statusCode"`
-	Headers    map[string]interface{} `json:"headers"`
-	Body       string                 `json:"body"`
+// ClientHTTPResponse is sent back to the server after processing a request locally.
+type ClientHTTPResponse struct {
+	Type       string      `json:"type"`
+	RequestID  string      `json:"requestId"`
+	StatusCode int         `json:"statusCode"`
+	Headers    http.Header `json:"headers"`
+	Body       string      `json:"body"`
 }
 
+// Heartbeat is received from the server to check if the client is alive.
+type Heartbeat struct {
+	Type      string `json:"type"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+// HeartbeatResponse is sent by the client to respond to a heartbeat.
+type HeartbeatResponse struct {
+	Type string `json:"type"`
+}
+
+// --- TunnelClient ---
+
+// TunnelClient manages the connection to the server and the local forwarding.
 type TunnelClient struct {
 	conn      net.Conn
 	localPort int
-	publicURL string
-	clientID  string
+	serverAddr string
 }
 
-func NewTunnelClient(localPort int) *TunnelClient {
+// NewTunnelClient creates a new client instance.
+func NewTunnelClient(serverAddr string, localPort int) *TunnelClient {
 	return &TunnelClient{
-		localPort: localPort,
+		serverAddr: serverAddr,
+		localPort:  localPort,
 	}
 }
 
-func (tc *TunnelClient) Connect(serverHost string, serverPort int) error {
-  fmt.Printf("Connecting to %s : %d \n",serverHost, serverPort)
-	// Connect to TCP server
-	conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", serverHost, serverPort))
+// Start connects to the server and begins listening for requests.
+func (tc *TunnelClient) Start() error {
+	log.Printf("Connecting to Bifrost server at %s...", tc.serverAddr)
+	conn, err := net.Dial("tcp", tc.serverAddr)
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %v", err)
 	}
 	tc.conn = conn
-
-	fmt.Printf("✅ Connected to TCP server on %s:%d\n", serverHost, serverPort)
+	log.Printf("✅ Connected to TCP server.")
 
 	// Send connection message
 	connectMsg := ConnectMessage{
 		Type:      "CONNECT",
 		LocalPort: tc.localPort,
 	}
-
-	msgBytes, err := json.Marshal(connectMsg)
-	if err != nil {
-		return fmt.Errorf("failed to create JSON message: %v", err)
+	if err := tc.sendMessage(connectMsg); err != nil {
+		return fmt.Errorf("failed to send connect message: %v", err)
 	}
 
-	fmt.Printf("📤 Sending connection request: %s\n", string(msgBytes))
-
-	// Fixed: Add newline to match server expectation
-	_, err = tc.conn.Write(append(msgBytes, '\n'))
-	if err != nil {
-		return fmt.Errorf("failed to send message: %v", err)
-	}
-
-	// Read response
+	// Read the first response, which should be CONNECTION_ESTABLISHED
 	reader := bufio.NewReader(tc.conn)
-	response, err := reader.ReadString('\n')
+	responseBytes, err := reader.ReadBytes('\n')
 	if err != nil {
-		return fmt.Errorf("failed to read response: %v", err)
+		return fmt.Errorf("failed to read connection response: %v", err)
 	}
 
-	fmt.Printf("📥 Raw response received: %s", response)
-
-	// Parse response
 	var connResp ConnectionResponse
-	err = json.Unmarshal([]byte(strings.TrimSpace(response)), &connResp)
-	if err != nil {
-		return fmt.Errorf("failed to parse JSON response: %v", err)
+	if err := json.Unmarshal(responseBytes, &connResp); err != nil {
+		return fmt.Errorf("failed to parse connection response: %s", string(responseBytes))
 	}
 
-	if connResp.Status != "success" {
-		return fmt.Errorf("connection failed with status: %s", connResp.Status)
+	if connResp.Type != "CONNECTION_ESTABLISHED" || connResp.Status != "success" {
+		return fmt.Errorf("connection failed: %s", connResp.Message)
 	}
 
-	tc.clientID = connResp.ClientID
-	tc.publicURL = connResp.PublicURL
+	log.Println("🎉 CONNECTION ESTABLISHED!")
+	log.Printf("   ├── Client ID: %s", connResp.ClientID)
+	log.Printf("   └── Public URL: %s", connResp.PublicURL)
+	log.Println("Forwarding traffic to http://localhost:", tc.localPort)
 
-	fmt.Println("\n🎉 CONNECTION ESTABLISHED:")
-	fmt.Printf("├── Status: %s\n", connResp.Status)
-	fmt.Printf("├── Client ID: %s\n", connResp.ClientID)
-	fmt.Printf("└── Public URL: %s\n", connResp.PublicURL)
+	// Start the main loop to listen for messages from the server
+	go tc.listen()
 
 	return nil
 }
 
-func (tc *TunnelClient) StartListening() {
-	fmt.Println("\n🔄 Starting to listen for HTTP requests...")
-	
-	reader := bufio.NewReader(tc.conn)
-	
-	for {
-		// Read incoming messages
-		message, err := reader.ReadString('\n')
-		if err != nil {
-			if err == io.EOF {
-				fmt.Println("📡 Connection closed by server")
-				break
+// listen runs the main loop, reading messages from the server.
+func (tc *TunnelClient) listen() {
+	defer tc.Close()
+	scanner := bufio.NewScanner(tc.conn)
+	log.Println("👂 Listening for server messages...")
+
+	for scanner.Scan() {
+		messageBytes := scanner.Bytes()
+		
+		var baseMsg BaseMessage
+		if err := json.Unmarshal(messageBytes, &baseMsg); err != nil {
+			log.Printf("⚠️ Could not parse message type: %v", err)
+			continue
+		}
+
+		// Dispatch based on message type
+		switch baseMsg.Type {
+		case "HTTP_REQUEST":
+			var req ServerHTTPRequest
+			if err := json.Unmarshal(messageBytes, &req); err != nil {
+				log.Printf("⚠️ Error parsing HTTP_REQUEST: %v", err)
+				continue
 			}
-			fmt.Printf("❌ Error reading message: %v\n", err)
-			continue
-		}
-
-		message = strings.TrimSpace(message)
-		if message == "" {
-			continue
-		}
-
-		fmt.Printf("📥 Received message: %s\n", message)
-
-		// Try to parse as HTTP request
-		var httpReq HTTPRequest
-		err = json.Unmarshal([]byte(message), &httpReq)
-		if err != nil {
-			fmt.Printf("❌ Error parsing HTTP request: %v\n", err)
-			continue
-		}
-
-		if httpReq.Type == "HTTP_REQUEST" {
-			go tc.handleHTTPRequest(httpReq)
+			go tc.handleHTTPRequest(req)
+		case "HEARTBEAT":
+			log.Println("💓 Received heartbeat, sending response...")
+			tc.handleHeartbeat()
+		default:
+			log.Printf("❓ Received unknown message type: %s", baseMsg.Type)
 		}
 	}
+
+	if err := scanner.Err(); err != nil {
+		log.Printf("❌ Error reading from server connection: %v", err)
+	}
+	log.Println("Connection closed by server.")
 }
 
-func (tc *TunnelClient) handleHTTPRequest(httpReq HTTPRequest) {
-	fmt.Printf("🌐 Handling HTTP request: %s %s\n", httpReq.Method, httpReq.URL)
+// handleHTTPRequest forwards an incoming request to the local server.
+func (tc *TunnelClient) handleHTTPRequest(req ServerHTTPRequest) {
+	log.Printf("🌐 Handling request [%s]: %s %s", req.RequestID, req.Method, req.URL)
 
-	// Create request to local server
-	localURL := fmt.Sprintf("http://localhost:%d%s", tc.localPort, httpReq.URL)
+	localURL := fmt.Sprintf("http://localhost:%d%s", tc.localPort, req.URL)
 	
-	var body io.Reader
-	if httpReq.Body != "" {
-		body = strings.NewReader(httpReq.Body)
-	}
-
-	req, err := http.NewRequest(httpReq.Method, localURL, body)
+	// Create a new request to the local service
+	localReq, err := http.NewRequest(req.Method, localURL, bytes.NewReader([]byte(req.Body)))
 	if err != nil {
-		tc.sendErrorResponse(httpReq.RequestID, fmt.Sprintf("Failed to create request: %v", err))
+		log.Printf("❌ [%s] Failed to create local request: %v", req.RequestID, err)
+		tc.sendErrorResponse(req.RequestID, 500, "Internal client error")
 		return
 	}
 
-	// Set headers
-	for key, value := range httpReq.Headers {
-		if key == "host" {
-			continue // Skip host header to avoid conflicts
-		}
-		if strValue, ok := value.(string); ok {
-			req.Header.Set(key, strValue)
-		}
-	}
+	// Copy headers from the original request
+	localReq.Header = req.Headers
+	// The http client will set the Host header correctly based on the URL
+	localReq.Host = fmt.Sprintf("localhost:%d", tc.localPort)
 
-	// Make request to local server
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	// Execute the request against the local service
+	client := &http.Client{Timeout: 25 * time.Second}
+	resp, err := client.Do(localReq)
 	if err != nil {
-		tc.sendErrorResponse(httpReq.RequestID, fmt.Sprintf("Failed to forward request: %v", err))
+		log.Printf("❌ [%s] Failed to forward request to local service: %v", req.RequestID, err)
+		tc.sendErrorResponse(req.RequestID, 502, "Bad Gateway: Local service is unavailable.")
 		return
 	}
 	defer resp.Body.Close()
 
-	// Read response body
+	// Read the response body from the local service
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		tc.sendErrorResponse(httpReq.RequestID, fmt.Sprintf("Failed to read response: %v", err))
+		log.Printf("❌ [%s] Failed to read local response body: %v", req.RequestID, err)
+		tc.sendErrorResponse(req.RequestID, 500, "Internal client error")
 		return
 	}
 
-	// Convert response headers
-	headers := make(map[string]interface{})
-	for key, values := range resp.Header {
-		if len(values) > 0 {
-			headers[key] = values[0]
-		}
-	}
-
-	// Send response back to server
-	httpResp := HTTPResponse{
+	// Construct the response to send back to the Bifrost server
+	httpResp := ClientHTTPResponse{
 		Type:       "HTTP_RESPONSE",
-		RequestID:  httpReq.RequestID,
+		RequestID:  req.RequestID,
 		StatusCode: resp.StatusCode,
-		Headers:    headers,
+		Headers:    resp.Header,
 		Body:       string(respBody),
 	}
 
-	respBytes, err := json.Marshal(httpResp)
-	if err != nil {
-		fmt.Printf("❌ Error marshaling response: %v\n", err)
-		return
+	if err := tc.sendMessage(httpResp); err != nil {
+		log.Printf("❌ [%s] Failed to send response to server: %v", req.RequestID, err)
+	} else {
+		log.Printf("✅ [%s] Sent response with status %d", req.RequestID, resp.StatusCode)
 	}
-
-	_, err = tc.conn.Write(append(respBytes, '\n'))
-	if err != nil {
-		fmt.Printf("❌ Error sending response: %v\n", err)
-		return
-	}
-
-	fmt.Printf("✅ Sent response for request %s (Status: %d)\n", httpReq.RequestID, resp.StatusCode)
 }
 
-func (tc *TunnelClient) sendErrorResponse(requestID, errorMsg string) {
-	fmt.Printf("❌ Sending error response: %s\n", errorMsg)
-	
-	httpResp := HTTPResponse{
+// handleHeartbeat sends a heartbeat response to the server.
+func (tc *TunnelClient) handleHeartbeat() {
+	resp := HeartbeatResponse{Type: "HEARTBEAT_RESPONSE"}
+	if err := tc.sendMessage(resp); err != nil {
+		log.Printf("⚠️ Failed to send heartbeat response: %v", err)
+	}
+}
+
+// sendMessage marshals a struct to JSON and sends it to the server with a newline.
+func (tc *TunnelClient) sendMessage(v interface{}) error {
+	msgBytes, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	// Append newline as a message delimiter
+	msgBytes = append(msgBytes, '\n')
+	_, err = tc.conn.Write(msgBytes)
+	return err
+}
+
+// sendErrorResponse sends a standardized error back to the server.
+func (tc *TunnelClient) sendErrorResponse(requestID string, statusCode int, errorMsg string) {
+	httpResp := ClientHTTPResponse{
 		Type:       "HTTP_RESPONSE",
 		RequestID:  requestID,
-		StatusCode: 500,
-		Headers:    map[string]interface{}{"Content-Type": "text/plain"},
+		StatusCode: statusCode,
+		Headers:    http.Header{"Content-Type": []string{"text/plain"}},
 		Body:       errorMsg,
 	}
-
-	respBytes, err := json.Marshal(httpResp)
-	if err != nil {
-		fmt.Printf("❌ Error marshaling error response: %v\n", err)
-		return
+	if err := tc.sendMessage(httpResp); err != nil {
+		log.Printf("❌ Failed to send error response for %s: %v", requestID, err)
 	}
-
-	tc.conn.Write(append(respBytes, '\n'))
 }
 
+// Close gracefully shuts down the connection.
 func (tc *TunnelClient) Close() {
 	if tc.conn != nil {
+		log.Println("👋 Closing connection to server...")
 		tc.conn.Close()
 	}
 }
 
 func main() {
-	fmt.Println("🚀 Starting Bifrost Tunnel Client...")
+	// --- Configuration Flags ---
+	serverAddr := flag.String("server", "127.0.0.1:8080", "Address of the Bifrost TCP server")
+	localPort := flag.Int("localport", 3000, "The local port to forward traffic to")
+	flag.Parse()
 
-	// Configuration
-	serverHost := "bifrost.prajyot.dev" //"13.217.71.218" // Change this to your EC2 IP when deployed
-	serverPort := 8080
-	localPort := 3000
+	log.Println("🚀 Starting Bifrost Tunnel Client...")
 
-	// Start a simple local HTTP server for testing
-	go startTestServer(localPort)
-
-	// Create and connect tunnel client
-	client := NewTunnelClient(localPort)
-	defer client.Close()
-
-	err := client.Connect(serverHost, serverPort)
-	if err != nil {
-		fmt.Printf("❌ Connection failed: %v\n", err)
-		return
-	}
-
-	fmt.Printf("\n🌍 Your local server is now accessible at: %s\n", client.publicURL)
-	fmt.Println("📝 Test it by opening the URL in your browser!")
-	fmt.Println("⏳ Press Ctrl+C to stop the tunnel...")
-
-	// Start listening for HTTP requests
-	client.StartListening()
-}
-
-func startTestServer(port int) {
-	mux := http.NewServeMux()
+	client := NewTunnelClient(*serverAddr, *localPort)
 	
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		html := fmt.Sprintf(`
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Bifrost Tunnel - Local Server</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
-        .container { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-        h1 { color: #2c3e50; }
-        .info { background: #ecf0f1; padding: 15px; border-radius: 5px; margin: 15px 0; }
-        .success { color: #27ae60; font-weight: bold; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>🎉 Bifrost Tunnel Working!</h1>
-        <p class="success">✅ Your local server is successfully exposed through the tunnel!</p>
-        
-        <div class="info">
-            <strong>Request Details:</strong><br>
-            📍 URL: %s<br>
-            🔧 Method: %s<br>
-            🕒 Time: %s<br>
-            🌐 User Agent: %s<br>
-            🏠 Local Port: %d
-        </div>
-        
-        <p>Try different paths:</p>
-        <ul>
-            <li><a href="/api/test">/api/test</a></li>
-            <li><a href="/hello">/hello</a></li>
-            <li><a href="/status">/status</a></li>
-        </ul>
-    </div>
-</body>
-</html>
-        `, r.URL.Path, r.Method, time.Now().Format("2006-01-02 15:04:05"), r.UserAgent(), port)
-		
-		w.Header().Set("Content-Type", "text/html")
-		w.WriteHeader(200)
-		w.Write([]byte(html))
-	})
+	// --- Graceful Shutdown Setup ---
+	shutdownChan := make(chan os.Signal, 1)
+	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-shutdownChan
+		log.Println("Interrupt received, shutting down.")
+		client.Close()
+		os.Exit(0)
+	}()
 
-	mux.HandleFunc("/api/test", func(w http.ResponseWriter, r *http.Request) {
-		response := map[string]interface{}{
-			"status":    "success",
-			"message":   "API endpoint working through tunnel!",
-			"timestamp": time.Now().Unix(),
-			"method":    r.Method,
-			"path":      r.URL.Path,
-		}
-		
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(response)
-	})
-
-	mux.HandleFunc("/hello", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/plain")
-		w.Write([]byte("Hello from your local server via Bifrost tunnel! 🚀"))
-	})
-
-	fmt.Printf("🌐 Test server starting on http://localhost:%d\n", port)
-	if err := http.ListenAndServe(fmt.Sprintf(":%d", port), mux); err != nil {
-		fmt.Printf("❌ Failed to start test server: %v\n", err)
+	// --- Start the Client ---
+	if err := client.Start(); err != nil {
+		log.Fatalf("❌ Client failed to start: %v", err)
 	}
+
+	// Block forever until an interrupt is received
+	select {}
 }
+
