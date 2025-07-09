@@ -89,7 +89,7 @@ func NewTunnelClient(serverAddr string, localPort int) *TunnelClient {
 
 // Start connects to the server and begins listening for requests.
 func (tc *TunnelClient) Start() error {
-	log.Printf("Connecting to Bifrost server at %s...", tc.serverAddr)
+  log.Printf("Connecting to Bifrost server at %s", tc.serverAddr)
 	conn, err := net.Dial("tcp", tc.serverAddr)
 	if err != nil {
 		return fmt.Errorf("failed to connect to server: %v", err)
@@ -268,9 +268,9 @@ func (tc *TunnelClient) Close() {
 
 func main() {
 	// --- Configuration Flags ---
-	serverAddr := flag.String("server", "127.0.0.1:8080", "Address of the Bifrost TCP server")
-	localPort := flag.Int("localport", 3000, "The local port to forward traffic to")
-	flag.Parse()
+	serverAddr := flag.String("server", "52.7.141.2:8080", "Address of the Bifrost TCP server")
+  localPort := flag.Int("localport", 3000, "The local port to forward traffic to")
+  flag.Parse()
 
 	log.Println("🚀 Starting Bifrost Tunnel Client...")
 
