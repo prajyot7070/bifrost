@@ -2,6 +2,7 @@ import http from 'http'
 import { json } from 'stream/consumers';
 import { connectionMap } from '.';
 import { ClientConnection } from './tcpServer';
+import { getRandomValues } from 'crypto';
 
 export class HTTPServer {
   port: number;
@@ -71,13 +72,15 @@ export class HTTPServer {
       //update the userRequestTime 
       this.userRequestTimestamp.set(userIp, now);
 
+      const headers = this.normalizeHTTPHeaders(req.headers as {[key: string] : string | string[]});
+
       // Prepare HTTP request data to send to client
       const requestData = {
         type: 'HTTP_REQUEST',
         requestId: this.generateRequestId(),
         method: req.method,
         url: req.url,
-        headers: req.headers,
+        headers: headers,
         body: await this.readRequestBody(req)
       };
 
@@ -89,7 +92,7 @@ export class HTTPServer {
         this.clientRequests.set(clientConnection.id, new Set());
       }
       this.clientRequests.get(clientConnection.id)!.add(requestId);
-
+      console.log(`Request received :- ${requestData}`);
       // Send request to client via TCP connection FIX: added \n
       clientConnection.socket.write(JSON.stringify(requestData) + '\n');
 
@@ -157,6 +160,17 @@ export class HTTPServer {
       }
       
     }
+  }
+
+  normalizeHTTPHeaders(headers: {[key: string] : string | string[]}) : {[key: string] : string[]} {
+    const normalised : {[key: string] : string[]} = {};
+    for (const key in headers) {
+      if(Object.prototype.hasOwnProperty.call(headers, key)){
+        const value = headers[key];
+        normalised[key] = Array.isArray(value) ? value : [String(value)];
+      }
+    }
+    return normalised;
   }
 
 }
