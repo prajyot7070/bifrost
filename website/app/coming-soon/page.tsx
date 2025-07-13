@@ -2,13 +2,12 @@
 
 import Image from "next/image";
 import React, { useState } from "react";
-import { AnimatedBifrostLogo } from "@/components/BifrostAnimatedLogo";
 export default function ComingSoon() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = async (e: any) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
     setMessage('');
@@ -72,7 +71,7 @@ export default function ComingSoon() {
           Bifrost is <br/> Coming Soon.
         </h1>
         <p className="text-lg sm:text-xl text-gray-300 mb-8 max-w-xl">
-          Prepare to instantly connect your localhost to the world. We're putting the finishing touches on your ultimate dev tunnel.
+          Prepare to instantly connect your localhost to the world. We&apos;re putting the finishing touches on your ultimate dev tunnel.
         </p>
 
         {/* Email Capture Form */}
