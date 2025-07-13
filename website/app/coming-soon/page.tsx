@@ -12,22 +12,25 @@ export default function ComingSoon() {
     e.preventDefault();
     setIsSubmitting(true);
     setMessage('');
-
     // Basic email validation
     if (!email || !email.includes('@') || !email.includes('.')) {
       setMessage('Please enter a valid email address.');
       setIsSubmitting(false);
       return;
     }
-
-    // Simulate API call (replace with actual API endpoint later)
+    
     try {
       console.log('Submitting email:', email);
-      await new Promise(resolve => setTimeout(resolve, 1500)); // Simulate network delay
-
-      setMessage('Thanks for your interest! We\'ll notify you soon.');
-      setEmail(''); // Clear email field
-    } catch (error) {
+      const res = await fetch('/api/early-signup', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ email })
+        })
+      if (res.ok) {
+        setMessage('Thanks for your interest! We\'ll notify you soon.');
+        setEmail(''); // Clear email field
+      }
+      } catch (error) {
       console.error('Submission error:', error);
       setMessage('Something went wrong. Please try again.');
     } finally {
