@@ -8,9 +8,10 @@ export class HTTPServer {
   port: number;
   server: http.Server | null = null;
   private pendingRequests = new Map<string, http.ServerResponse>(); //<requestId, response handler>
-  private userRequestTimestamp = new Map<string, number>(); //<subdomain, time in sec>
+  private userRequestStats = new Map<string, {count: number, windowStart: number}>(); //<ip_addr, time in sec>
   private clientRequests = new Map<string, Set<string>>(); //<clientConnection.id , Set<requestId's, . . .>>
-  private readonly RATE_LIMIT_WINDOW = 10000; // 1 sec
+  private readonly RATE_LIMIT_WINDOW_MS = 1000 * 60; // 1 sec
+  private readonly MAX_REQ_PER_WINDOW = 100;
 
   constructor(port: number) {
     this.port = port;
@@ -61,16 +62,23 @@ export class HTTPServer {
   ) {
     try {
       //check for rate limit
-//      const now = Date.now();
-//      const userIp = req.socket.remoteAddress ?? 'unknown';
-//      const userRequestTime = this.userRequestTimestamp.get(userIp) || 0;
-//      if (now - userRequestTime < this.RATE_LIMIT_WINDOW) {
-//        console.warn(`Rate limit exceeded for ${clientConnection.subdomain}`);
-//        res.writeHead(429,{'content-type':'text/plain'});
-//        res.end('Too many requests');
-//      }
-//      //update the userRequestTime 
-//      this.userRequestTimestamp.set(userIp, now);
+      const now = Date.now();
+      const userIp = req.socket.remoteAddress ?? 'unknown';
+      let userStats = this.userRequestStats.get(userIp);
+      if (!userStats || now - userStats.windowStart >= this.RATE_LIMIT_WINDOW_MS) {
+        userStats = {
+          count: 1,
+          windowStart: now,
+        };
+      } else {
+        userStats.count++;
+        this.userRequestStats.set(userIp, userStats);
+        if (userStats.count > this.MAX_REQ_PER_WINDOW) {
+          console.warn(`Rate limit exceeded for Ip ${userIp}\n Subdomain: ${req.headers.host}\n Requests: ${userStats.count} in ${this.RATE_LIMIT_WINDOW_MS / 1000}s`);
+          res.writeHead(429, {'content-type': 'text/plain'});
+          res.end('Too many requests. Please try again later');
+        }
+      }
 
       const headers = this.normalizeHTTPHeaders(req.headers as {[key: string] : string | string[]});
 
