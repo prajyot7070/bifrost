@@ -20,7 +20,7 @@ export const HeroText = () => {
 
         {/* Description */}
         <p className="text-sm sm:text-base md:text-lg text-muted-foreground max-w-3xl mx-auto">
-          Build fast, modern, and elegant user experiences with confidence. A gateway from your dev machine to the world — instantly.
+Instantly share your local development environment with secure, public HTTPS tunnels – no deployments needed.
         </p>
 
         {/* CTA Buttons */}
