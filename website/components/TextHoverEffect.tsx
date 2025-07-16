@@ -99,11 +99,16 @@ export const TextHoverEffect = ({
         y="50%"
         textAnchor="middle"
         dominantBaseline="middle"
-        strokeWidth="1.2"
+        strokeWidth="2"
         className="fill-transparent stroke-white text-[80px] font-black"
         initial={{ strokeDashoffset: 1000, strokeDasharray: 1000 }}
         animate={{ strokeDashoffset: 0, strokeDasharray: 1000 }}
-        transition={{ duration: 4, ease: "easeInOut" }}
+        transition={{ 
+          duration: 2, 
+          ease: [0.25, 0.46, 0.45, 0.94], // Custom cubic-bezier for smoother animation
+          strokeDashoffset: { duration: 1.5 },
+          pathLength: { duration: 3 }
+        }}
       >
         {text}
       </motion.text>
