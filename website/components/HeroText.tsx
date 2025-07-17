@@ -25,7 +25,7 @@ Instantly share your local development environment with secure, public HTTPS tun
 
         {/* CTA Buttons */}
         <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
-          <button className="px-5 py-2 text-black bg-white hover:bg-gray-200 rounded-full text-sm font-medium transition">
+          <button className="px-5 py-2 text-black bg-white hover:bg-gray-200 rounded-full text-sm font-medium transition" onClick={() => window.location.href = "/auth"}>
             🚀 Get Started
           </button>
           <button className="px-5 py-2 border border-gray-600 text-white hover:bg-gray-800 rounded-full text-sm font-medium transition">
