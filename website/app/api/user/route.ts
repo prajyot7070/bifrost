@@ -16,11 +16,9 @@ export async function GET() {
       email: true,
       name: true,
       currentTier: true,
-      apiKeys: {
+      apiKey: {
         where: { isActive: true }, // Fetch only active API keys
-        take: 1, // For simplicity, take the first active API key
         select: { keyHash: true }, // Only return the keyHash, not the plain key!
-        orderBy: { createdAt: 'desc' }, // Get the latest one
       },
     },
   });
@@ -28,8 +26,12 @@ export async function GET() {
   if (!userData) {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
-  const userApiKey = userData.apiKeys.length > 0 ? `sk-bifrost-...${userData.apiKeys[0].keyHash.substring(userData.apiKeys[0].keyHash.length - 8)}` : null; // Display last 8 chars of hash
 
+  const userApiKey = userData.apiKey 
+  ? `sk-bifrost-...${userData.apiKey.keyHash.substring(userData.apiKey.keyHash.length-8)}`
+  : null;
+
+  
   return NextResponse.json({
     id: userData.id,
     email: userData.email,
