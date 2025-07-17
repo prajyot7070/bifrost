@@ -1,9 +1,10 @@
 "use client";
-import { useState, useEffect } from "react"; // Ensure useEffect is imported
+import { useState, useEffect } from "react";
 import { Eye, EyeOff, Copy, LogOut, Plus, Trash2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/Button";
 import { Table } from "@/components/Table";
 import { toast } from "sonner";
+import { useRouter } from "next/navigation"; // Assuming useRouter is needed elsewhere
 
 interface Tunnel {
   id: string;
@@ -11,8 +12,8 @@ interface Tunnel {
   subdomain: string;
   publicUrl: string;
   localPort: number;
-  isActive: boolean;  
-  createdAt: string; 
+  isActive: boolean;
+  createdAt: string;
   updatedAt: string;
   lastActivity: string | null;
   userId: string;
@@ -20,21 +21,59 @@ interface Tunnel {
 
 export default function DashboardPage() {
   const [apiKeyVisible, setApiKeyVisible] = useState(false);
-  const [username, setUsername] = useState("Loading..."); // Initialize with loading state
-  const [tunnels, setTunnels] = useState<Tunnel[]>([]); // Use the Tunnel interface
-  const [apiKey, setApiKey] = useState<string | null>(null); // Initialize as null, fetch from API
+  const [username, setUsername] = useState("Loading...");
+  const [tunnels, setTunnels] = useState<Tunnel[]>([]);
+  const [fullGeneratedApiKey, setFullGeneratedApiKey] = useState<string | null>(null);
+  const [displayApiKeyIdentifier, setDisplayApiKeyIdentifier] = useState<string | null>(null);
+  const [isGeneratingKey, setIsGeneratingKey] = useState(false);
+
+  const router = useRouter(); // Initialize useRouter if used for redirects like below
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
-    window.location.href = "/";
+    router.push("/"); // Use router.push for Next.js navigation
+  };
+
+  const getApiKey = async () => {
+    setIsGeneratingKey(true);
+    setFullGeneratedApiKey(null);
+    setDisplayApiKeyIdentifier(null);
+    try {
+      const apikeyResponse = await fetch("/api/apikeys", { method: "POST"});
+      if (!apikeyResponse.ok) {
+        const errorData = await apikeyResponse.json();
+        console.error("Failed to generate API key:", errorData);
+        toast.error(errorData.error || "Failed to generate API key");
+        return;
+      }
+      const data = await apikeyResponse.json();
+      const generatedApiKey = data.apiKey;
+
+      if (!generatedApiKey || typeof generatedApiKey !== 'string') {
+        console.error("API response missing or invalid 'apiKey' property:", data);
+        toast.error("API did not return a valid key. Please try again.");
+        return;
+      }
+
+      setFullGeneratedApiKey(generatedApiKey);
+      setDisplayApiKeyIdentifier(`sk-bifrost-...${generatedApiKey.substring(generatedApiKey.length - 8)}`);
+      toast.success("Copy this key! You will not see it again");
+    } catch (error: any) {
+      console.error("Error generating API key:", error);
+      toast.error("An error occurred during key generation.");
+    } finally {
+      setIsGeneratingKey(false);
+    }
   };
 
   const copyToClipboard = () => {
-    if (apiKey) {
-      navigator.clipboard.writeText(apiKey);
+    if (fullGeneratedApiKey) {
+      navigator.clipboard.writeText(fullGeneratedApiKey);
       toast.success("API Key copied!");
+    } else if (displayApiKeyIdentifier) {
+      toast.error("Full API Key not available for copy. Generate a new one if needed.");
     } else {
-      toast.error("API Key not available.");
+      toast.error("No API Key to copy.");
     }
   };
 
@@ -49,19 +88,18 @@ export default function DashboardPage() {
         if (userRes.ok) {
           const userData = await userRes.json();
           setUsername(userData.name || userData.email);
-          setApiKey(userData.apiKey || null); 
-          } else {
+          setDisplayApiKeyIdentifier(userData.apiKey || null);
+        } else {
           console.error("Failed to fetch user data");
           toast.error("Failed to load user data");
-          }
+          // Optionally redirect to login if user data fetch fails (e.g., unauthorized)
+          // router.push('/login');
+        }
 
-        // Fetch Tunnels
         const tunnelsRes = await fetch("/api/tunnels");
         if (!tunnelsRes.ok) throw new Error("Failed to fetch tunnels");
         const tunnelsData = await tunnelsRes.json();
-        
-        setTunnels(tunnelsData.tunnels); 
-
+        setTunnels(tunnelsData.tunnels);
       } catch (err) {
         console.error("Error loading dashboard data:", err);
         toast.error("Failed to load dashboard data");
@@ -69,11 +107,10 @@ export default function DashboardPage() {
     };
 
     fetchData();
-  }, []); 
+  }, []);
 
   return (
     <div className="min-h-screen bg-black">
-      {/* Header */}
       <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur-sm sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
@@ -89,30 +126,27 @@ export default function DashboardPage() {
               className="text-zinc-300 hover:text-red-400 hover:bg-red-400/10 transition-colors"
               onClick={handleLogout}
             >
-              <LogOut className="w-4 h-4 mr-2" />
+              <LogOut size={16} className="mr-2" />
               <span className="hidden sm:inline">Logout</span>
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Mobile Welcome Message */}
         <div className="sm:hidden mb-6">
           <h2 className="text-lg font-semibold text-white">
             Welcome back, {username}
           </h2>
         </div>
 
-        {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition-colors">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-zinc-400">Active Tunnels</p>
                 <p className="text-2xl font-bold text-white">
-                  {tunnels.filter(t => t.isActive).length} {/* FIX: Use t.isActive */}
+                  {tunnels.filter(t => t.isActive).length}
                 </p>
               </div>
               <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center">
@@ -128,7 +162,7 @@ export default function DashboardPage() {
                 <p className="text-2xl font-bold text-white">{tunnels.length}</p>
               </div>
               <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center">
-                <ExternalLink className="w-5 h-5 text-blue-400" />
+                <ExternalLink size={20} className="text-blue-400" />
               </div>
             </div>
           </div>
@@ -138,18 +172,16 @@ export default function DashboardPage() {
               <div>
                 <p className="text-sm text-zinc-400">This Month</p>
                 <p className="text-2xl font-bold text-white">
-                  {/* FIX: Implement logic to count tunnels created this month */}
                   {tunnels.filter(t => new Date(t.createdAt).getMonth() === new Date().getMonth() && new Date(t.createdAt).getFullYear() === new Date().getFullYear()).length}
                 </p>
               </div>
               <div className="w-12 h-12 bg-purple-500/10 rounded-lg flex items-center justify-center">
-                <Plus className="w-5 h-5 text-purple-400" />
+                <Plus size={20} className="text-purple-400" />
               </div>
             </div>
           </div>
         </div>
 
-        {/* API Key Section */}
         <div className="mb-8">
           <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-6 hover:border-zinc-700 transition-colors">
             <div className="flex items-center justify-between mb-4">
@@ -159,50 +191,53 @@ export default function DashboardPage() {
                 <span className="text-sm text-zinc-400">Active</span>
               </div>
             </div>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-zinc-300 mb-2">
-                  API Key
-                </label>
-                <div className="relative">
-                  <input
-                    type={apiKeyVisible ? "text" : "password"}
-                    value={apiKey || "Loading API Key..."} // Display loading state
-                    readOnly
-                    className="w-full bg-zinc-800 text-white px-4 py-3 pr-20 rounded-lg border border-zinc-700 focus:border-zinc-600 transition-colors font-mono text-sm"
-                  />
-                  <div className="absolute top-2 right-2 flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setApiKeyVisible(!apiKeyVisible)}
-                      className="text-zinc-400 hover:text-white hover:bg-zinc-700 h-8 w-8"
-                    >
-                      {apiKeyVisible ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={copyToClipboard}
-                      className="text-zinc-400 hover:text-white hover:bg-zinc-700 h-8 w-8"
-                      disabled={!apiKey} // Disable copy if API key not loaded
-                    >
-                      <Copy size={16} />
-                    </Button>
-                  </div>
+
+            <div className="space-y-4 w-full">
+              <div className="relative w-full">
+                <input
+                  type={apiKeyVisible ? "text" : "password"}
+                  value={fullGeneratedApiKey || displayApiKeyIdentifier || "No API Key. Click GET KEY."}
+                  readOnly
+                  className="w-full bg-zinc-800 text-white px-4 py-3 pr-20 rounded-lg border border-zinc-700 focus:border-zinc-600 transition-colors font-mono text-sm"
+                />
+
+                <div className="absolute top-2 right-2 flex gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setApiKeyVisible(!apiKeyVisible)}
+                    className="text-zinc-400 hover:text-white hover:bg-zinc-700 h-8 w-8"
+                  >
+                    {apiKeyVisible ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={copyToClipboard}
+                    className="text-zinc-400 hover:text-white hover:bg-zinc-700 h-8 w-8"
+                    disabled={!fullGeneratedApiKey && !displayApiKeyIdentifier}
+                  >
+                    <Copy size={16} />
+                  </Button>
                 </div>
               </div>
-              
-              <div className="flex items-center space-x-2 text-sm text-zinc-500">
-                <div className="w-1 h-1 bg-zinc-500 rounded-full"></div>
-                <span>Keep your API key secure and never share it publicly</span>
-              </div>
+
+              <Button
+                onClick={getApiKey}
+                className="w-full sm:w-fit bg-white text-black hover:bg-zinc-200 transition"
+                disabled={isGeneratingKey}
+              >
+                {isGeneratingKey ? 'Generating...' : 'GET KEY'}
+              </Button>
+            </div>
+
+            <div className="flex items-center space-x-2 text-sm text-zinc-500 mt-3">
+              <div className="w-1 h-1 bg-zinc-500 rounded-full"></div>
+              <span>Keep your API key secure and never share it publicly</span>
             </div>
           </div>
         </div>
 
-        {/* Tunnels Section */}
         <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
           <div className="p-6 border-b border-zinc-800">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -216,14 +251,14 @@ export default function DashboardPage() {
           </div>
 
           <div className="overflow-x-auto">
-            {tunnels.length > 0 ? ( // Only render table if tunnels exist
+            {tunnels.length > 0 ? (
               <Table
                 data={tunnels}
                 columns={[
-                  { 
-                    key: "publicUrl", // Changed from 'url' to 'publicUrl' to match schema
+                  {
+                    key: "publicUrl",
                     label: "Tunnel URL",
-                    render: (row: Tunnel) => ( // Use Tunnel type
+                    render: (row: Tunnel) => (
                       <div className="flex items-center space-x-2">
                         <span className="font-mono text-sm text-white">{row.publicUrl}</span>
                         <Button
@@ -237,26 +272,26 @@ export default function DashboardPage() {
                       </div>
                     )
                   },
-                  { 
-                    key: "isActive", // Changed from 'status' to 'isActive'
+                  {
+                    key: "isActive",
                     label: "Status",
-                    render: (row: Tunnel) => ( // Use Tunnel type
+                    render: (row: Tunnel) => (
                       <div className="flex items-center space-x-2">
                         <div className={`w-2 h-2 rounded-full ${
-                          row.isActive ? 'bg-green-500' : 'bg-red-500' // FIX: Check row.isActive
+                          row.isActive ? 'bg-green-500' : 'bg-red-500'
                         }`}></div>
                         <span className={`text-sm font-medium ${
-                          row.isActive ? 'text-green-400' : 'text-red-400' // FIX: Check row.isActive
+                          row.isActive ? 'text-green-400' : 'text-red-400'
                         }`}>
-                          {row.isActive ? 'Active' : 'Inactive'} {/* FIX: Display 'Active'/'Inactive' */}
+                          {row.isActive ? 'Active' : 'Inactive'}
                         </span>
                       </div>
                     )
                   },
-                  { 
-                    key: "createdAt", 
+                  {
+                    key: "createdAt",
                     label: "Created",
-                    render: (row: Tunnel) => ( // Use Tunnel type
+                    render: (row: Tunnel) => (
                       <span className="text-sm text-zinc-400">
                         {new Date(row.createdAt).toLocaleDateString('en-US', {
                           month: 'short',
@@ -269,7 +304,7 @@ export default function DashboardPage() {
                   {
                     key: "actions",
                     label: "",
-                    render: (row: Tunnel) => ( // Use Tunnel type
+                    render: (row: Tunnel) => (
                       <div className="flex items-center justify-end space-x-2">
                         <Button
                           variant="ghost"
@@ -284,10 +319,10 @@ export default function DashboardPage() {
                   },
                 ]}
               />
-            ) : ( // Render no tunnels message if array is empty
+            ) : (
               <div className="p-12 text-center">
                 <div className="w-16 h-16 bg-zinc-800 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <ExternalLink className="w-8 h-8 text-zinc-500" />
+                  <ExternalLink size={32} className="text-zinc-500" />
                 </div>
                 <h3 className="text-lg font-medium text-white mb-2">No tunnels yet</h3>
                 <p className="text-zinc-400 mb-6">
