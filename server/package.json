@@ -12,6 +12,7 @@
   "description": "",
   "dependencies": {
     "@types/node": "^22.15.29",
+    "dotenv": "^17.2.0",
     "nodemon": "^3.1.10",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"

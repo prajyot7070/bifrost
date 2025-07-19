@@ -1,11 +1,12 @@
-import net from 'net'
-import { nextTick } from 'process'
-import { BufferSource } from 'stream/web';
 import { TCPServer } from './tcpServer';
 import { HTTPServer } from './httpServer';
+import process from 'process';
+import dotenv from 'dotenv';
 
-const TCP_PORT = 8080
-const HTTP_PORT = 7070
+dotenv.config();
+
+const TCP_PORT : number = parseInt(process.env.TCP_PORT || '0', 10);
+const HTTP_PORT : number = parseInt(process.env.HTTP_PORT || '0', 10);
 
 export const connectionMap = new  Map<string, any>();
 
