@@ -427,7 +427,7 @@ export default function Home() {
       </div>
 
       {/* Hero Section (z-20) */}
-      <div className="relative z-20">
+      <div id="home" className="relative z-20">
         <HeroText />
       </div>
 
@@ -445,7 +445,7 @@ export default function Home() {
       </div>
 
       {/* Feature Cards Section */}
-      <div className="mt-40 z-30 relative flex flex-col items-center px-4">
+      <div id="features" className="mt-40 z-30 relative flex flex-col items-center px-4">
         {/* Section Heading */}
         <div className="mb-12 text-center max-w-2xl">
           <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-4">
@@ -475,7 +475,7 @@ export default function Home() {
       </div>
 
       {/* Footer */}
-      <div className="relative z-50">
+      <div id="contact" className="relative z-50">
       <Footer />
       </div>
 
