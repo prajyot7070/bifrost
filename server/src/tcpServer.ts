@@ -3,9 +3,11 @@ import net from "net"
 import { connectionMap } from ".";
 import { HTTPServer } from "./httpServer";
 import { connect } from "http2";
+import { error } from "console";
 
 export interface ClientConnection {
   id: string;
+  apiKey: string;
   socket: net.Socket;
   subdomain: string;
   localPort: number;
@@ -45,7 +47,6 @@ export class TCPServer {
   //create tcp server and start listening 
   createServer() {
     this.server = net.createServer((socket) => {
-      // Auth / Verification using API key 
       // Client should send token with 'CONNECT' msg
 	    console.log(`Client connected from ${socket.remoteAddress}:${socket.remotePort}`);
 	    socket.setTimeout(this.CONNECTION_TIMEOUT);
@@ -67,6 +68,8 @@ export class TCPServer {
             if (timeSinceLastActivity > this.HEARTBEAT_INTERVAL * 2) {
               console.log(`Heartbeat timeout for client ${clientConnection.id}. Disconnecting`);
               socket.destroy();
+              //delete the tunnel from db
+				      this.removeClientConnectionById(clientConnection.id);
               return;
             }
           }
@@ -80,7 +83,7 @@ export class TCPServer {
         }
       }
 
-			socket.on('data', (data) => {
+			socket.on('data', async (data) => {
         messageBuff += data.toString();
         let boundary = messageBuff.indexOf('\n');
         while (boundary !== -1) {
@@ -91,7 +94,7 @@ export class TCPServer {
 		          const message = JSON.parse(messageString);
 		          console.log("message :-", message);
 		          if(message.type === 'CONNECT') {
-		            clientConnection = this.handleConnect(message, socket);
+		            clientConnection = await this.handleConnect(message, socket);
 		            if (clientConnection) {
 		              startHeartbeat();
 		            }
@@ -163,13 +166,15 @@ export class TCPServer {
     }
   }
 
-  private handleConnect(message: any, socket: net.Socket) : ClientConnection | null {
+  private async handleConnect(message: any, socket: net.Socket) : Promise<ClientConnection | null> {
     const clientId = this.generateUniqueId();
 	  const subdomain = `tunnel-${clientId}`;
 	  const publicUrl = this.createPublicURL(subdomain);
+    const apiKey = message.apikey;
 	 
 	  const clientConnection = {
 	    id: clientId,
+      apiKey: apiKey,
 	    socket: socket,
 	    subdomain: subdomain,
 	    localPort: message.localPort,
@@ -178,9 +183,30 @@ export class TCPServer {
 	    requestCount: 0,
 	    lastActivity: new Date()
 	  };
-	 
+	
+    //add new tunnel to database
+    const res = await fetch('localhost:3000/api/tunnels', {
+      method: "POST",
+      headers: {
+        "Content-Type":"application/json",
+        "Authorization":`Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        clientId: clientId,
+	      subdomain: subdomain,
+	      publicUrl: publicUrl,
+	      localPort: message.localPort,
+	      lastActivity: new Date().toISOString()
+      }),
+    });
+
+    if (!res.ok) {
+      console.error(await res.json());
+      return null;
+    } 
+
 	  connectionMap.set(subdomain, clientConnection);
-	 
+
 	  const response = {
 	    type: 'CONNECTION_ESTABLISHED',
 	    clientId: clientId,
@@ -192,6 +218,23 @@ export class TCPServer {
 	  console.log(`Client connected :- ${clientId} -> ${publicUrl}`);
     return clientConnection;
 
+  }
+
+  private async removeClientConnectionById(clientId: string) {
+    const conn = [...connectionMap.values()].find(c => c.id === clientId);
+    if (!conn) return;
+    try {
+      await fetch("localhost:3000/tunnels",{ //need to put this url in config or env file
+        method: "DELETE",
+        headers: {
+          "Content-Type":"application/json",
+          "Authorization":`Bearer ${conn.apikey}`,
+        },
+        body: JSON.stringify({tunnelId: conn.id})
+      })
+    } catch (error) {
+      console.error("Error while deleting connection from db:",error);
+    }
   }
 
   private sendHeartBeat(socket: net.Socket) {
