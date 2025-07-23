@@ -37,6 +37,7 @@ model User {
 
 model APIKey {
   id         String    @id @default(uuid())
+  keyPrefix  String    @unique
   keyHash    String    @unique // Store a hash of the API key (the actual key is given to the user once)
   name       String? // User-defined name for the key (e.g., "My Laptop Key", "CI/CD Key")
   isActive   Boolean   @default(true) // Allows users to enable/disable/revoke keys
