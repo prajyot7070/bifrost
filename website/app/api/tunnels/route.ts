@@ -61,7 +61,7 @@ export async function POST(req: Request) {
 
 
 //Delete tunnel
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request) {
   const authHeader = req.headers.get("authorization");
     const result = await validateApiKey(authHeader);
     if (!result) {
