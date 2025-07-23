@@ -50,7 +50,7 @@ export default function AuthForm() {
       const payload = isLogin 
       ? { email, password}
       : { name, email, password};
-      console.log("Sending payload:", JSON.stringify(payload));
+      //console.log("Sending payload:", JSON.stringify(payload));
       const res = await fetch(`/api/auth/${isLogin ? "login" : "signup"}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
