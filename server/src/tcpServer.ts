@@ -185,7 +185,8 @@ export class TCPServer {
 	  };
 	
     //add new tunnel to database
-    const res = await fetch('localhost:3000/api/tunnels', {
+    try {
+      const res = await fetch('http://localhost:3000/api/tunnels', {
       method: "POST",
       headers: {
         "Content-Type":"application/json",
@@ -199,13 +200,15 @@ export class TCPServer {
 	      lastActivity: new Date().toISOString()
       }),
     });
-
-    if (!res.ok) {
+      if (!res.ok) {
       console.error(await res.json());
-      return null;
-    } 
-
-	  connectionMap.set(subdomain, clientConnection);
+      throw new Error(await res.json());
+    }
+    } catch (error) {
+      console.error(error);
+    }
+   	
+    connectionMap.set(subdomain, clientConnection);
 
 	  const response = {
 	    type: 'CONNECTION_ESTABLISHED',
