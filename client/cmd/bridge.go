@@ -21,8 +21,17 @@ const serverAddr string = "52.7.141.2:8080"
 // bridgeCmd represents the bridge command
 var bridgeCmd = &cobra.Command{
 	Use:   "bridge",
-	Short: "Expose your local service to the internet",
-	Run: func(cmd *cobra.Command, args []string) {
+  Short: "Expose a local port to the internet via a public URL",
+  Long: `The bridge command connects to the Bifrost server and 
+creates a tunnel for a specific local port. Once connected, 
+a public URL is generated to forward HTTP traffic to your machine.
+
+You must run 'bifrost auth' before using this command.
+
+Example:
+  bifrost bridge --port 3000
+`,
+  Run: func(cmd *cobra.Command, args []string) {
     apiKey := loadApiKey()
     if apiKey == "" {
       fmt.Println("Counldn't load Apikey \n Run `bifrost auth --key <API_KEY>` first")
@@ -42,11 +51,14 @@ var bridgeCmd = &cobra.Command{
 		if err := client.Start(); err != nil {
 			log.Fatalf("❌ Failed to start tunnel: %v", err)
 		}
+
+    select {}
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(bridgeCmd)
+  bridgeCmd.Flags().IntVar(&port,"port",3000,"Local port to expose")
 }
 
 func loadApiKey() string {

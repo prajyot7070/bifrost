@@ -122,7 +122,7 @@ func (tc *TunnelClient) Start() error {
 	log.Println("🎉 CONNECTION ESTABLISHED!")
 	log.Printf("   ├── Client ID: %s", connResp.ClientID)
 	log.Printf("   └── Public URL: %s", connResp.PublicURL)
-	log.Println("Forwarding traffic to http://localhost:", tc.localPort)
+	//log.Println("Forwarding traffic to http://localhost:", tc.localPort)
 
 	// Start the main loop to listen for messages from the server
 	go tc.listen()
@@ -134,14 +134,14 @@ func (tc *TunnelClient) Start() error {
 func (tc *TunnelClient) listen() {
 	defer tc.Close()
 	scanner := bufio.NewScanner(tc.conn)
-	log.Println("👂 Listening for server messages...")
+	//log.Println("👂 Listening for server messages...")
 
 	for scanner.Scan() {
 		messageBytes := scanner.Bytes()
 		
 		var baseMsg BaseMessage
 		if err := json.Unmarshal(messageBytes, &baseMsg); err != nil {
-			log.Printf("⚠️ Could not parse message type: %v", err)
+			//log.Printf("⚠️ Could not parse message type: %v", err)
 			continue
 		}
 
@@ -150,15 +150,15 @@ func (tc *TunnelClient) listen() {
 		case "HTTP_REQUEST":
 			var req ServerHTTPRequest
 			if err := json.Unmarshal(messageBytes, &req); err != nil {
-				log.Printf("⚠️ Error parsing HTTP_REQUEST: %v", err)
+				//log.Printf("⚠️ Error parsing HTTP_REQUEST: %v", err)
 				continue
 			}
 			go tc.handleHTTPRequest(req)
 		case "HEARTBEAT":
-			log.Println("💓 Received heartbeat, sending response...")
+			//log.Println("💓 Received heartbeat, sending response...")
 			tc.handleHeartbeat()
 		default:
-			log.Printf("❓ Received unknown message type: %s", baseMsg.Type)
+			//log.Printf("❓ Received unknown message type: %s", baseMsg.Type)
 		}
 	}
 
@@ -170,14 +170,14 @@ func (tc *TunnelClient) listen() {
 
 // handleHTTPRequest forwards an incoming request to the local server.
 func (tc *TunnelClient) handleHTTPRequest(req ServerHTTPRequest) {
-	log.Printf("🌐 Handling request [%s]: %s %s", req.RequestID, req.Method, req.URL)
+	//log.Printf("🌐 Handling request [%s]: %s %s", req.RequestID, req.Method, req.URL)
 
 	localURL := fmt.Sprintf("http://localhost:%d%s", tc.localPort, req.URL)
 	
 	// Create a new request to the local service
 	localReq, err := http.NewRequest(req.Method, localURL, bytes.NewReader([]byte(req.Body)))
 	if err != nil {
-		log.Printf("❌ [%s] Failed to create local request: %v", req.RequestID, err)
+		//log.Printf("❌ [%s] Failed to create local request: %v", req.RequestID, err)
 		tc.sendErrorResponse(req.RequestID, 500, "Internal client error")
 		return
 	}
@@ -215,9 +215,9 @@ func (tc *TunnelClient) handleHTTPRequest(req ServerHTTPRequest) {
 	}
 
 	if err := tc.sendMessage(httpResp); err != nil {
-		log.Printf("❌ [%s] Failed to send response to server: %v", req.RequestID, err)
+		//log.Printf("❌ [%s] Failed to send response to server: %v", req.RequestID, err)
 	} else {
-		log.Printf("✅ [%s] Sent response with status %d", req.RequestID, resp.StatusCode)
+		//log.Printf("✅ [%s] Sent response with status %d", req.RequestID, resp.StatusCode)
 	}
 }
 
@@ -225,7 +225,7 @@ func (tc *TunnelClient) handleHTTPRequest(req ServerHTTPRequest) {
 func (tc *TunnelClient) handleHeartbeat() {
 	resp := HeartbeatResponse{Type: "HEARTBEAT_RESPONSE"}
 	if err := tc.sendMessage(resp); err != nil {
-		log.Printf("⚠️ Failed to send heartbeat response: %v", err)
+		//log.Printf("⚠️ Failed to send heartbeat response: %v", err)
 	}
 }
 

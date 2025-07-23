@@ -1,34 +1,35 @@
 /*
 Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
 import (
+	"fmt"
 	"os"
+  "strings"
+  "strconv"
 
 	"github.com/spf13/cobra"
+  "github.com/fatih/color"
 )
 
 
-
-// rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "client",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Use:   "bifrost",
+	Short: "Expose your local services to the internet",
+	Long: `Bifrost is a lightweight tunneling tool that creates secure,
+temporary public URLs for your local ports.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+It's self-hosted, easy to run, and perfect for sharing localhost projects.`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		if cmd.Use == "bifrost" && len(os.Args) == 1 {
+			PrintAsciiArt()
+		}
+	},
 }
 
-// Execute adds all child commands to the root command and sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+
+
 func Execute() {
 	err := rootCmd.Execute()
 	if err != nil {
@@ -37,15 +38,53 @@ func Execute() {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.client.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+		rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
+// hexToRGB converts a hex color string to R, G, B values.
+func hexToRGB(hex string) (uint8, uint8, uint8) {
+	hex = strings.TrimPrefix(hex, "#")
+	val, err := strconv.ParseUint(hex, 16, 32)
+	if err != nil {
+		return 255, 255, 255 // Default to white on error
+	}
+	return uint8(val >> 16), uint8((val >> 8) & 0xFF), uint8(val & 0xFF)
+}
+
+// PrintAsciiArt displays the Bifrost banner with a smooth, custom gradient.
+func PrintAsciiArt() {
+	// A 6-step gradient from a steel blue to a soft purple.
+	gradient := []string{
+		"#6a93cb", // Step 1: Blue
+		"#7a8dc1", // Step 2
+		"#8b87b8", // Step 3
+		"#9b81ae", // Step 4
+		"#ac7ba5", // Step 5
+		"#bc759b", // Step 6: Purple/Mauve
+	}
+
+	artLines := []string{
+		"██████╗ ██╗███████╗██████╗  ██████╗ ███████╗████████╗",
+		"██╔══██╗██║██╔════╝██╔══██╗██╔═══██╗██╔════╝╚══██╔══╝",
+		"██████╔╝██║█████╗  ██████╔╝██║   ██║███████╗   ██║   ",
+		"██╔══██╗██║██╔══╝  ██╔══██╗██║   ██║╚════██║   ██║   ",
+		"██████╔╝██║██║     ██║  ██║╚██████╔╝███████║   ██║   ",
+		"╚═════╝ ╚═╝╚═╝     ╚═╝  ╚═╝ ╚═════╝ ╚══════╝   ╚═╝   ",
+	}
+
+	// Print each line of the art with its corresponding gradient color.
+	for i, line := range artLines {
+		r, g, b := hexToRGB(gradient[i])
+		// This is the ANSI escape code for 24-bit (TrueColor) foreground text.
+		// \x1b[38;2;R;G;Bm tells the terminal to use the specified RGB color.
+		// \x1b[0m resets the color back to default.
+		fmt.Printf("\x1b[38;2;%d;%d;%dm%s\x1b[0m\n", r, g, b, line)
+	}
+
+	fmt.Println()
+
+	// You can still use the fatih/color library for other, simpler styling.
+	tagline := color.New(color.FgHiWhite, color.Bold).SprintFunc()
+	fmt.Println(tagline("Lightweight self-hosted tunneling CLI — expose local services instantly.\n"))
+}
 
