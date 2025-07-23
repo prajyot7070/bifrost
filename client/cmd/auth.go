@@ -1,40 +1,51 @@
 /*
 Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 )
 
+var apiKey string 
+
 // authCmd represents the auth command
 var authCmd = &cobra.Command{
 	Use:   "auth",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Short: "Set and store your Bifrost apiKey",
 	Run: func(cmd *cobra.Command, args []string) {
+    //check if the apikey is set
+    if apiKey == "" {
+      fmt.Println("Please provide apiKey using --key ")
+      return
+    }
+    config := map[string]string{"apiKey":apiKey}
+    fmt.Println("config wo marshal:-",config)
+    data, _ := json.Marshal(config)
+    os.MkdirAll(getConfigDir(), os.ModePerm)
+    err := os.WriteFile(getConfigPath(), data, 0600)
+    if err != nil {
+      fmt.Println("Failed to store ApiKey")
+    }
 		fmt.Println("auth called")
 	},
 }
 
 func init() {
+  authCmd.Flags().StringVar(&apiKey, "key", "", "Your Bifrost apiKey")
 	rootCmd.AddCommand(authCmd)
+}
 
-	// Here you will define your flags and configuration settings.
+func getConfigDir() string {
+  dir, _ := os.UserConfigDir()
+  return filepath.Join(dir,"bifrost")
+}
 
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// authCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// authCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+func getConfigPath() string {
+  return filepath.Join(getConfigDir(),"config.json")
 }
