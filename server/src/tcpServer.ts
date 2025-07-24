@@ -190,7 +190,7 @@ private async handleConnect(message: any, socket: net.Socket): Promise<ClientCon
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
+        "authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
         clientId,
@@ -235,7 +235,7 @@ private async handleConnect(message: any, socket: net.Socket): Promise<ClientCon
         method: "DELETE",
         headers: {
           "Content-Type":"application/json",
-          "Authorization":`Bearer ${conn.apikey}`,
+          "authorization":`Bearer ${conn.apikey}`,
         },
         body: JSON.stringify({tunnelId: conn.id})
       })
