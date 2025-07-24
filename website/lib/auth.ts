@@ -15,14 +15,13 @@ export function verifyToken(token: string) {
 export async function validateApiKey(authorizationHeader: string | null) {
   if (!authorizationHeader || !authorizationHeader.startsWith("Bearer ")) return null; 
   const rawKey = authorizationHeader.replace("Bearer ","").trim();
-  const keySecret = authorizationHeader.replace("sk-bifrost-","");
+  const keySecret = rawKey.replace("sk-bifrost-","");
   const keyPrefix = keySecret.slice(0, 10);
-  const keyRecord = await prisma.aPIKey.findUnique({
+  const keyRecord = await prisma.aPIKey.findFirst({
     where: { keyPrefix }
   });
   if (!keyRecord || !keyRecord.isActive) return null;
   const isValid = await bcrypt.compare(rawKey, keyRecord.keyHash);
   if (!isValid) return null;
-
   return { userId: keyRecord.userId };
 }
