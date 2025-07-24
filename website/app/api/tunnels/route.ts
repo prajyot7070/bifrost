@@ -20,16 +20,19 @@ export async function GET() {
 
 //add a tunnel
 export async function POST(req: Request) {
-  const user = await getCurrentUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
   try {
-    const body = await req.json();
     const authHeader = req.headers.get("authorization");
-    const result = await validateApiKey(authHeader);
-    if (!result) {
-      return NextResponse.json({error: "Unauthorized"},{status: 401});
+    const validationResult = await validateApiKey(authHeader);
+
+    // If API key is invalid, validationResult will be null
+    if (!validationResult) {
+      return NextResponse.json({ error: "Invalid API Key" }, { status: 401 });
     }
+    
+    // The userId comes from the validated API key
+    const { userId } = validationResult;
+
+    const body = await req.json();
     const {
       clientId,
       subdomain,
@@ -37,7 +40,7 @@ export async function POST(req: Request) {
       localPort,
       lastActivity,
     } = body;
-    
+
     if (!clientId || !subdomain || !publicUrl || !localPort) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
@@ -48,7 +51,7 @@ export async function POST(req: Request) {
         subdomain,
         publicUrl,
         localPort,
-        userId: user.id,
+        userId: userId, // Use the ID from the validated key
         lastActivity: new Date(lastActivity),
       },
     });
@@ -56,34 +59,6 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Error creating tunnel:", error);
     return NextResponse.json({ error: "Failed to create tunnel" }, { status: 500 });
-  }
-}
-
-
-//Delete tunnel
-export async function DELETE(req: Request) {
-  const authHeader = req.headers.get("authorization");
-    const result = await validateApiKey(authHeader);
-    if (!result) {
-      return NextResponse.json({error: "Unauthorized"},{status: 401});
-    }  
-  const { tunnelId } = await req.json();
-  const { userId } = result;
-  try {
-    // Check ownership before deletion
-    const tunnel = await prisma.tunnel.findUnique({
-      where: { id: tunnelId },
-    });
-    if (!tunnel || tunnel.userId !== userId) {
-      return NextResponse.json({ error: "Tunnel not found or unauthorized" }, { status: 404 });
-    }
-    await prisma.tunnel.delete({
-      where: { id: tunnelId },
-    });
-    return NextResponse.json({ success: true }, { status: 200 });
-  } catch (error) {
-    console.error("Error deleting tunnel:", error);
-    return NextResponse.json({ error: "Failed to delete tunnel" }, { status: 500 });
   }
 }
 
