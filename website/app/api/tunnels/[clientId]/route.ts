@@ -1,4 +1,5 @@
-// /api/tunnels/[tunnelId]/route.ts
+// /api/tunnels/[clientId]/route.ts
+
 import { NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/auth";
 import { prisma } from "@/prisma";
@@ -18,20 +19,23 @@ export async function DELETE(
   const { userId } = result;
 
   if (!clientId) {
-    return NextResponse.json({ error: "Tunnel ID is missing" }, { status: 400 });
+    return NextResponse.json({ error: "Client ID is missing" }, { status: 400 });
   }
 
   try {
-    const tunnel = await prisma.tunnel.findUnique({
-      where: { clientId:  clientId  },
+    // Find the tunnel using the clientId, not the primary key
+    const tunnel = await prisma.tunnel.findFirst({
+      where: { clientId: clientId },
     });
 
+    // The ownership check remains the same and is very important
     if (!tunnel || tunnel.userId !== userId) {
       return NextResponse.json({ error: "Tunnel not found or unauthorized" }, { status: 404 });
     }
 
+    // Update the record using its primary key (tunnel.id)
     await prisma.tunnel.update({
-      where: { id: tunnelId },
+      where: { id: tunnel.id },
       data: { isActive: false },
     });
 
