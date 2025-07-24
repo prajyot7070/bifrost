@@ -1,5 +1,5 @@
-import { randomBytes } from "crypto";
 import net from "net"
+import { randomBytes } from "crypto";
 import { connectionMap } from ".";
 import { HTTPServer } from "./httpServer";
 import { connect } from "http2";
@@ -131,7 +131,7 @@ export class TCPServer {
 	      this.connections.delete(socket);
 	      if (clientConnection) {
           console.log(`Client ${clientConnection.id} disconnected`); 
-          clientConnection.isActive = false;
+          this.removeClientConnectionById(clientConnection.id);
 	        connectionMap.delete(clientConnection.subdomain);
 	        if (this.httpServer) {
 	          this.httpServer.cleanupClientRequests(clientConnection.id);
@@ -226,18 +226,16 @@ private async handleConnect(message: any, socket: net.Socket): Promise<ClientCon
   return clientConnection;
 }
 
-
   private async removeClientConnectionById(clientId: string) {
     const conn = [...connectionMap.values()].find(c => c.id === clientId);
     if (!conn) return;
     try {
-      await fetch("https://bifrost.prajyot.dev/tunnels",{ //need to put this url in config or env file
+      await fetch(`https://bifrost.prajyot.dev/tunnels/${conn.id}`,{ //need to put this url in config or env file
         method: "DELETE",
         headers: {
           "Content-Type":"application/json",
           "authorization":`Bearer ${conn.apikey}`,
-        },
-        body: JSON.stringify({tunnelId: conn.id})
+        }
       })
     } catch (error) {
       console.error("Error while deleting connection from db:",error);
