@@ -1,13 +1,11 @@
 // /api/tunnels/[clientId]/route.ts
 
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { validateApiKey } from "@/lib/auth";
 import { prisma } from "@/prisma";
+import { useParams } from "next/navigation";
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: { clientId: string } }
-) {
+export async function DELETE( req: NextRequest, { params }: { params: Promise< { clientId: string } > } )  {
   const authHeader = req.headers.get("authorization");
   const result = await validateApiKey(authHeader);
 
@@ -15,7 +13,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { clientId } = params;
+  const { clientId } = await params;
   const { userId } = result;
 
   if (!clientId) {
