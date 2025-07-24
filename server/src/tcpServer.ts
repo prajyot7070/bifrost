@@ -166,62 +166,66 @@ export class TCPServer {
     }
   }
 
-  private async handleConnect(message: any, socket: net.Socket) : Promise<ClientConnection | null> {
-    const clientId = this.generateUniqueId();
-	  const subdomain = `tunnel-${clientId}`;
-	  const publicUrl = this.createPublicURL(subdomain);
-    const apiKey = message.apikey;
-	 
-	  const clientConnection = {
-	    id: clientId,
-      apiKey: apiKey,
-	    socket: socket,
-	    subdomain: subdomain,
-	    localPort: message.localPort,
-	    publicUrl: publicUrl,
-	    isActive: true,
-	    requestCount: 0,
-	    lastActivity: new Date()
-	  };
-	
-    //add new tunnel to database
-    try {
-      const res = await fetch('https://bifrost.prajyot.dev/api/tunnels', {
+private async handleConnect(message: any, socket: net.Socket): Promise<ClientConnection | null> {
+  const clientId = this.generateUniqueId();
+  const subdomain = `tunnel-${clientId}`;
+  const publicUrl = this.createPublicURL(subdomain);
+  const apiKey = message.apikey;
+
+  const clientConnection = {
+    id: clientId,
+    apiKey,
+    socket,
+    subdomain,
+    localPort: message.localPort,
+    publicUrl,
+    isActive: true,
+    requestCount: 0,
+    lastActivity: new Date()
+  };
+
+  // Try to add to DB
+  try {
+    const res = await fetch('https://bifrost.prajyot.dev/api/tunnels', {
       method: "POST",
       headers: {
-        "Content-Type":"application/json",
-        "Authorization":`Bearer ${apiKey}`
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
       },
       body: JSON.stringify({
-        clientId: clientId,
-	      subdomain: subdomain,
-	      publicUrl: publicUrl,
-	      localPort: message.localPort,
-	      lastActivity: new Date().toISOString()
+        clientId,
+        subdomain,
+        publicUrl,
+        localPort: message.localPort,
+        lastActivity: new Date().toISOString()
       }),
     });
-      if (!res.ok) {
-      console.error(await res.json());
-      throw new Error(await res.json());
-    }
-    } catch (error) {
-      console.error(error);
-    }
-   	
-    connectionMap.set(subdomain, clientConnection);
 
-	  const response = {
-	    type: 'CONNECTION_ESTABLISHED',
-	    clientId: clientId,
-	    publicUrl: publicUrl,
-	    status: 'success'
-	  };
-	 
-	  socket.write(JSON.stringify(response) + '\n');
-	  console.log(`Client connected :- ${clientId} -> ${publicUrl}`);
-    return clientConnection;
-
+    if (!res.ok) {
+      const errorBody = await res.text();
+      console.error("❌ Tunnel creation failed:", res.status, errorBody);
+      return null;
+    }
+  } catch (error) {
+    console.error("❌ Failed to store tunnel in DB:", error);
+    return null; // 🛑 stop here
   }
+
+  // Only proceed if DB insert was successful
+  connectionMap.set(subdomain, clientConnection);
+
+  const response = {
+    type: 'CONNECTION_ESTABLISHED',
+    clientId,
+    publicUrl,
+    status: 'success'
+  };
+
+  socket.write(JSON.stringify(response) + '\n');
+  console.log(`✅ Client connected :- ${clientId} -> ${publicUrl}`);
+  return clientConnection;
+}
+
 
   private async removeClientConnectionById(clientId: string) {
     const conn = [...connectionMap.values()].find(c => c.id === clientId);
