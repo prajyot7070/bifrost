@@ -49,12 +49,8 @@ export const Footer: React.FC = () => {
         {/* Bottom Content */}
         <div className="relative flex flex-col sm:flex-row justify-between items-center text-xs text-muted-foreground">
           <p>© {new Date().getFullYear()} Bifrost. All rights reserved.</p>
-          <div className="mt-2 sm:mt-0 flex items-center gap-2">
-            <span>Made by</span>
-            <span className="text-white font-medium">Prajyot Mane</span>
-          </div>
-          <div className="absolute right-0 bottom-0 pr-4 pb-2 text-muted-foreground text-xs">
-            © Aceternity
+          <div className="mt-5 absolute right-0 bottom-0 pr-4 pb-2 text-muted-foreground text-xs">
+            Made with Aceternity
           </div>
         </div>
       </div>
