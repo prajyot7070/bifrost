@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@next/third-parties": "^15.4.3",
     "@prisma/client": "^6.11.1",
     "@react-three/drei": "^10.5.1",
     "@react-three/fiber": "^9.2.0",
