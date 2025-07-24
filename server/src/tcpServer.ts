@@ -186,7 +186,7 @@ export class TCPServer {
 	
     //add new tunnel to database
     try {
-      const res = await fetch('http://localhost:3000/api/tunnels', {
+      const res = await fetch('https://bifrost.prajyot.dev/api/tunnels', {
       method: "POST",
       headers: {
         "Content-Type":"application/json",
@@ -227,7 +227,7 @@ export class TCPServer {
     const conn = [...connectionMap.values()].find(c => c.id === clientId);
     if (!conn) return;
     try {
-      await fetch("http://localhost:3000/tunnels",{ //need to put this url in config or env file
+      await fetch("https://bifrost.prajyot.dev/tunnels",{ //need to put this url in config or env file
         method: "DELETE",
         headers: {
           "Content-Type":"application/json",
