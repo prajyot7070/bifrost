@@ -126,12 +126,16 @@ export class TCPServer {
 	        
 			});
 
-			socket.on('close', (hadError) => {
+			socket.on('close', async (hadError) => {
         stopHeartBeat();
 	      this.connections.delete(socket);
 	      if (clientConnection) {
           console.log(`Client ${clientConnection.id} disconnected`); 
-          this.removeClientConnectionById(clientConnection.id);
+          try {
+            await this.removeClientConnectionById(clientConnection.id);
+          } catch (error) {
+            console.error("Error during API call on disconnect:", error)
+          }
 	        connectionMap.delete(clientConnection.subdomain);
 	        if (this.httpServer) {
 	          this.httpServer.cleanupClientRequests(clientConnection.id);
