@@ -26,3 +26,7 @@ Description: A simple, powerful scheduler that allows developers to trigger HTTP
 
 Project Relay: Real-time WebSockets for Serverless (bit-Hard)
 Description: A managed "WebSockets-as-a-Service" platform designed for serverless frameworks like Next.js on Vercel. It handles persistent WebSocket connections, allowing developers to easily add real-time features to their serverless applications via a simple REST API.
+
+## License
+This project is licensed under the Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0).  
+You may use, modify, and share this project for personal and educational purposes, but **commercial use is not allowed**.  
